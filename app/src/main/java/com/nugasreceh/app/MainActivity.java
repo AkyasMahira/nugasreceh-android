@@ -1,10 +1,14 @@
 package com.nugasreceh.app;
 
+import android.content.Intent;
 import android.graphics.Bitmap;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -14,7 +18,7 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
-import androidx.activity.OnBackPressedCallback; // Ditambahkan untuk OnBackPressedDispatcher
+import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 
 public class MainActivity extends AppCompatActivity {
@@ -27,6 +31,10 @@ public class MainActivity extends AppCompatActivity {
 
     private final String WEB_URL = "https://nugasreceh.com/";
     private boolean isError = false;
+
+    // Variabel penampung data untuk fitur upload file
+    private ValueCallback<Uri[]> mUploadMessage;
+    private final static int FILECHOOSER_RESULTCODE = 1;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,6 +59,27 @@ public class MainActivity extends AppCompatActivity {
 
         setupWebViewClient();
 
+        // Mengatur WebChromeClient untuk menangani upload file / file chooser
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback,
+                                             WebChromeClient.FileChooserParams fileChooserParams) {
+                if (mUploadMessage != null) {
+                    mUploadMessage.onReceiveValue(null);
+                }
+                mUploadMessage = filePathCallback;
+
+                Intent intent = fileChooserParams.createIntent();
+                try {
+                    startActivityForResult(intent, FILECHOOSER_RESULTCODE);
+                } catch (Exception e) {
+                    mUploadMessage = null;
+                    return false;
+                }
+                return true;
+            }
+        });
+
         webView.loadUrl(WEB_URL);
 
         btnRetry.setOnClickListener(v -> {
@@ -61,7 +90,6 @@ public class MainActivity extends AppCompatActivity {
             webView.reload();
         });
 
-        // Posisinya dipindahkan ke dalam onCreate agar terbaca oleh sistem
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
@@ -114,5 +142,16 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+    }
+
+    // Menangkap kembali data file yang dipilih dari galeri/file manager Android
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == FILECHOOSER_RESULTCODE) {
+            if (mUploadMessage == null) return;
+            mUploadMessage.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data));
+            mUploadMessage = null;
+        }
     }
 }
